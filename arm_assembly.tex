@@ -1,0 +1,265 @@
+\documentclass{article}
+\begin{document}
+	\title{ARM Assembly Programming}
+	\maketitle
+	\newpage
+	\section{Pipelining and Program Counter}
+	From the architecture ARMv7, arm uses pipeline to make the operation fast. A three stage pipeline is used.\newline
+	\begin{itemize}
+		\item Fetch
+		\item Decode
+		\item Execute
+	\end{itemize}
+	When the processor executes the current instruction, it will be decoding the previous instruction and fetching the fetching the instruction previous to that. So the program counter (PC) will have the address of the instruction which is being fetched.\newline
+	\begin{itemize}
+		\item In ARM mode, value of PC will be addr\_of\_curr\_ins + 8.
+		\item In THUMB mode, value of PC will be addr\_of\_curr\_ins + 4.
+	\end{itemize}
+	Example:\newline
+	\begin{itemize}
+		\item[] .section .text
+		\item[] .global \_start
+		\item[] \_start:
+		\item[0x00010054] \qquad mov r0, pc
+		\item[0x00010058] \qquad mov r1, \#2
+		\item[0x0001005C] \qquad add r2, r1, r1
+	\end{itemize}
+	The value of r0 after executing instruction "1" will be 0x0001005C. While executing instruction "1", the value of PC will be 0x0001005C and after execution it will bee 0x00010058.\newline
+	\textbf{The Program Counter (PC) points to the instruction being fetched rather than to the instruction being executed.}
+	\newpage
+	\section{Program Status Register}
+	\subsection{Negative Zero Carry}
+	Let's go through some examples
+	\begin{itemize}
+		\item[] .section .text
+		\item[] .global \_start
+		\item[] \_start:
+		\item[]\qquad mov r0, \#2
+		\item[]\qquad mov r1, \#4
+		\item[]\qquad cmp r0, r1
+	\end{itemize}
+	Use gdb to run the above example. After executing the last instruction, the registers will look like (use \textit{info registers} to print register information)\newline
+	\begin{tabular}{l l l}
+		r0 & 0x2	& 2 \\
+		r1 & 0x4	&	4 \\
+		r2 & 0x0	&	0 \\
+		r3 & 0x0	&	0 \\
+		r4 & 0x0	&	0 \\
+		r5 & 0x0	&	0 \\
+		r6 & 0x0	&	0 \\
+		r7 & 0x0	&	0 \\
+		r8 & 0x0	&	0 \\
+		r9 & 0x0	&	0 \\
+		r10 & 0x0	&	0 \\
+		r11 & 0x0	&	0 \\
+		r12 & 0x0	&	0 \\
+		sp & 0xbefff380 	& 0xbefff380 \\
+		lr & 0x0	&	0 \\
+		pc & 0x10060	&	0x10060 \\
+		cpsr & 0x80000010	&	-2147483632
+	\end{tabular}
+	\newline
+	Bit 4 is always 1. The bit 31 is set after the cmp operation. \textit{cmp r0, r1} gives \textit{r0-r1}, which results in a negative number thus sets the negative flag.\newline
+	Now lets do the opposite, \textit{cmp r1, r0}\newline
+	cpsr will become 0x20000010\newline
+	Now the carry flag got set. Why the operation (4-2) sets the carry flag, as though the operation does not introduce a carry?\newline
+	To understand this lets do two more operations.\newline
+	subs r2,r0,r1 where r0=2 and r1 = 4\newline
+	which gives\newline
+	r2 = 0xfffffffe (-2)\newline
+	cpsr = 0x80000010\newline
+	and\newline
+	subs r2,r1,r0\newline
+	which gives\newline
+	r2 = 2\newline
+	and\newline
+	cpsr=0x20000010\newline
+	Let's see the actual subtraction in hardware and find out why?\\
+	\noindent
+	1. 4-2 = 4+(-2)\newline \newline
+	\begin{tabular}{r l}
+		11011 & (carry)\\
+		0100 & (4)\\
+		1101 & (not 2)\\
+		0010 & (result)
+	\end{tabular}\newline \newline
+	Here carry out = 1\newline \newline
+	2. 2 - 4 = 2 + (-4)\newline \newline
+	\begin{tabular}{r l}
+		00111 & (carry)\\
+		0010 & (2)\\
+		1011 & (not 4)\\
+		1110 & (result)
+	\end{tabular}\newline \newline
+	Here carry out = 0\newline \newline
+	Let's see one more operation.\newline
+	\begin{itemize}
+		\item[] .section .text
+		\item[] .global \_start
+		\item[] \_start:
+		\item[]\qquad mov r0, \#2
+		\item[]\qquad ld r1,[pc] 
+		\item[]\qquad adds r2, r0, r1
+		\item[]\qquad .word 0xFFFFFFFE
+	\end{itemize}
+	CPSR = 0x60000010\newline
+	The zero and carry flags are set.\newline
+	So a carry occurs\newline
+	1. When the result of a signed addition is greater than $2^{32}$\newline
+	2. If the result of subtraction is positive or zero.\newline
+	3. The result of an inline barrel shifter operation in a move or logical instruction.\newline
+	\textbf{Most instructions update the status flags only if the S suffix is specified}\newline
+	Consider point 3.\newline
+	\begin{itemize}
+		\item[] .section .text
+		\item[] .global \_start
+		\item[] \_start:
+		\item[]\qquad mov r0, [pc]
+		\item[]\qquad lsls r0,r0,\#1 
+		\item[]\qquad .word 0x80000000
+	\end{itemize}
+	The above code will produce, cpsr=0x60000010.\newline
+	Carry flag and zero flag are set.\newline
+	The following operation will also sets the carry flag\\
+	lsrs r0,r0,\#1 where r0 = 0xFFFFCDEF\\
+	r0 become 0x7FFFE6F7\\
+	What if r0 is simply 1\\
+	This also sets the carry flag.\\
+	\textbf{So carry in ARM means both carry in and carry out.}\\\\
+	Now consider the rotation operation.\\
+	rors r0,r0,\#1 where r0 = 1\\
+	This results in r0 = 0x80000000 and sets sign and carry flag. If the rotation is by 2 then both carry and sign won't be set. This is because when the suffix 's' is used the old bit b[0] is placed in the carry. For the roration by two the old bit b[0] is '0' thus the carry flag won't be set.\\\\
+	Till now we have covered negative
+	\footnote{Negative is referred as sign flag}, zero and carry flags. Now lets cover other flags in CPSR.
+	\subsection{Overflow and Cumulative saturation bit}
+	Overflow flag is set when the result of an arithmetic operation doesn't fit in 32 bit 2's compliment.
+	\begin{itemize}
+		\item[] .section .text
+		\item[] .global \_start
+		\item[] \_start:
+		\item[]\qquad mov r0, [pc]
+		\item[]\qquad add r1,r0,\#2
+		\item[]\qquad .word 0x7FFFFFFF
+	\end{itemize}
+	The above code will result in setting of overflow bit. The result in r1 will be 0x80000001 so the sign bit will also set.\\\\
+    Bit[27] of the CPSR is a sticky overflow flag, also known as the Q flag. This flag is set to 1 if any of the following occurs:
+	\begin{itemize}
+        \item Saturation of the addition result in a QADD or QDADD instruction
+        \item Saturation of the subtraction result in a QSUB or QDSUB instruction
+        \item Saturation of the doubling intermediate result in a QDADD or QDSUB instruction
+        \item Signed overflow during an SMLA<x><y> or SMLAW<y> instruction
+    \end{itemize}
+	\begin{itemize}
+		\item[] .section .text
+		\item[] .global \_start
+		\item[] \_start:
+		\item[]\qquad mov r0, [pc]
+		\item[]\qquad qadd r1,r0,r0
+		\item[]\qquad .word 0x70000000
+	\end{itemize}
+	When the above code executed, the resukt should be 0xE0000000, but since there is a saturation occurs, the resukt will be saturated to the maximum possible positive integer. i.e r1 = 0x7FFFFFFF and the cumulative overflow flag will be set.\newline
+	\textbf{The Q flag is sticky in that once it has been set to 1, it is not affected by whether subsequent calculations saturate and/or overflow.}\newline
+	Use "msr cpsr\_f, \#0" to clear the CPSR flags.
+	\section{ARM Registers}
+	\begin{itemize}
+		\item R0 - R6, R8 - R10 : General purpose registers
+		\item R7 : Register to hold syscall number. General purpose.
+		\item R11 : Frame pointer.
+		\item R12 : Intra process call (ip).
+		\item R13 : Stack pointer (sp).
+		\item R14 : Link register (lr).
+		\item R15 : Program counter (pc).
+		\item CPSR
+	\end{itemize}
+	\subsection{Use of registers in function call}
+	Arm procedure call standards specifies that the registers r4-r11 must be preserved between function calls and that the called function is responsible for that preservation (otherwise it will be an overhead to push and pop it on every function call). The first four 32 bit values are passed through registers r0-r3. If there is a 64 bit value, either r0-r1 or r2-r3 combination is used to pass that value. All other values are passed by pushing them into the stack. The result is returned in either r0 or r0-r1 for 64 bit value.\\\\
+	Example of calling abs function is shown below.\\
+	\begin{itemize}
+	\item[] .text
+	\item[] .global \_start
+	\item[] abs:
+	\item[]\qquad push \{r4, lr\}
+	\item[]\qquad adds r0, \#0
+	\item[]\qquad poppl \{pc\}	\qquad ; pl is for a contional execution.
+	\item[]\qquad mov r4, \#0
+	\item[]\qquad subs r0, r4, r0
+	\item[]\qquad pop \{r4, pc\}	
+	\item[] \_start:
+	\item[]\qquad mov r0, \#-4 \qquad ; Input r0
+	\item[]\qquad bl abs
+	\item[]\qquad mov r0, r0 \qquad ; Result r0
+	\end{itemize}
+Details of contional execution will be covered in later sections.\\\\
+Calling 'c' function from assembly.\\
+	\begin{itemize}
+	\item[] // Print abs(z) + x + y
+	\item[] .global main
+	\item[] \qquad .extern printf
+	
+	\item[] .text
+	\item[] out\_str:
+	\item[] \qquad .ascii "The answer is \%d $\backslash n \backslash 0$"	
+	\item[] .align 4
+	\item[] opr:
+	\item[] \qquad push \{lr, r4\} \qquad ; This will give a warning \footnote{The registers must be in ascending order}
+	\item[] \qquad bl abs
+	\item[] \qquad add r4, r0, r1
+	\item[] \qquad add r0, r4, r2
+	\item[] \qquad pop \{r4, pc\}
+	\item[] abs:
+	\item[] \qquad push \{r4, lr\}
+	\item[] \qquad adds r0, \#0
+	\item[] \qquad poppl {pc}
+	\item[] \qquad mov r4, \#0
+	\item[] \qquad subs r0, r4, r0
+	\item[] \qquad pop \{pc\}
+	
+	\item[] main:
+	\item[] \qquad push \{ip, lr\}
+	\item[] \qquad mov r0, \#-4
+	\item[] \qquad mov r1, \#3
+	\item[] \qquad mov r2, \#6
+	\item[] \qquad bl opr
+	\item[] \qquad mov r1, r0
+	\item[] \qquad ldr r0, =out\_str
+	\item[] \qquad bl printf
+	\item[] \qquad mov r0, \#0
+	\item[] \qquad pop \{pc, ip\} \qquad ; This will give a warning$^2$
+	\end{itemize}
+	Compile the above code using gcc, instead of native 'as'. Because gcc wil look for printf in the library path.
+	\subsection{Stack Pointer - Push and Pop}
+	Lets see an example of printf with more than 4 inputs.\\\\
+	\begin{itemize}
+		\item[] .global main
+		\item[] \qquad .extern printf
+		
+		\item[] .text
+		\item[] text:
+		\item[] \qquad .ascii "This contains \%s, \%s, \%s, \%s $\backslash n \backslash 0$"
+		\item[] text\_1:
+		\item[] \qquad .ascii "Fisrt text$\backslash 0$"
+		\item[] text\_2:
+		\item[] \qquad .ascii "Second text$\backslash 0$"
+		\item[] text\_3:
+		\item[] \qquad .ascii "Third text$\backslash 0$
+		\item [] text\_4:
+		\item[] \qquad .ascii "Fourth text$\backslash 0$"
+		
+		\item[] .align 4
+		
+		\item[] main:
+		\item[] \qquad push \{ip, lr\}
+		\item[] \qquad ldr r0, =text
+		\item[] \qquad ldr r1, =text\_1
+		\item[] \qquad ldr r2, =text\_2
+		\item[] \qquad ldr r3, =text\_3
+		\item[] \qquad ldr r4, =text\_4
+		\item[] \qquad sub sp, sp, \#4
+		\item[] \qquad str r4, [sp]
+		\item[] \qquad bl printf
+		\item[] \qquad add sp, sp, \#4
+		\item[] \qquad mov r0, \#0 // return 0
+		\item[] \qquad pop \{ip, pc\}
+		
+	\end{itemize}
+\end{document}
