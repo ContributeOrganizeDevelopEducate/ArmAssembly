@@ -1,0 +1,6 @@
+Using QEMU emulator.
+
+qemu-system-arm -cpu arm1176 -m 256 -M versatilepb -kernel <path_to_kernel> -append "root=/dev/sda2 rootfstype=ext4 rw" -hda <path_to_image_file> -serial stdio -redir tcp:5022::22 -no-reboot
+
+You can use the tutorials from https://azeria-labs.com/emulate-raspberry-pi-with-qemu/ for configuring the qemu for arm system emulation.
+
