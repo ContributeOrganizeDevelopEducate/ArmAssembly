@@ -1,0 +1,2 @@
+# ArmAssembly
+ARM now being used widely in embedded as well as general purpose applications. A wide range of compilers available for free under gnu gcc for arm. This makes easy to use 'C' language for programming ARM. However studying ARM assembly helps to understand different architectures of ARM. This also helps getting an understanding of how to debug a code written for ARM. Moreover writing assembly heps to improve the analytical skills.
